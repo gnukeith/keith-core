@@ -228,6 +228,7 @@ using extensions::ChromeContentBrowserClientExtensionsPart;
 #include "brave/components/ai_chat/core/common/mojom/common.mojom.h"
 #include "brave/components/ai_chat/core/common/mojom/customization_settings.mojom.h"
 #include "brave/components/ai_chat/core/common/mojom/history.mojom.h"
+#include "brave/components/ai_chat/core/common/mojom/lm_studio.mojom.h"
 #include "brave/components/ai_chat/core/common/mojom/ollama.mojom.h"
 #include "brave/components/ai_chat/core/common/mojom/settings_helper.mojom.h"
 #include "brave/components/ai_chat/core/common/mojom/tab_tracker.mojom.h"
@@ -654,6 +655,7 @@ void BraveContentBrowserClient::RegisterTrustedWebUIInterfaceBrokers(
   registry.ForWebUI<BraveSettingsUI>()
       .Add<ai_chat::mojom::AIChatSettingsHelper>()
       .Add<ai_chat::mojom::CustomizationSettingsHandler>()
+      .Add<ai_chat::mojom::LmStudioService>()
       .Add<ai_chat::mojom::OllamaService>();
 #endif  // BUILDFLAG(ENABLE_AI_CHAT)
   if (base::FeatureList::IsEnabled(commands::features::kBraveCommands)) {

@@ -37,6 +37,12 @@ export function getModelIcon(model: Mojom.Model): string {
   ) {
     return 'ollama'
   }
+  if (
+    model.options?.customModelOptions?.endpoint?.url
+    === Mojom.LM_STUDIO_ENDPOINT
+  ) {
+    return 'lmstudio-color'
+  }
   return modelIcons[model.key as keyof typeof modelIcons] ?? fallbackModelIcon
 }
 

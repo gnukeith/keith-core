@@ -787,6 +787,10 @@ void BraveAddCommonStrings(content::WebUIDataSource* html_source,
        IDS_SETTINGS_LEO_ASSISTANT_OLLAMA_SYNC_LABEL},
       {"braveLeoAssistantOllamaManagedLabel",
        IDS_SETTINGS_LEO_ASSISTANT_OLLAMA_MANAGED_LABEL},
+      {"braveLeoAssistantLmStudioSyncLabel",
+       IDS_SETTINGS_LEO_ASSISTANT_LM_STUDIO_SYNC_LABEL},
+      {"braveLeoAssistantLmStudioManagedLabel",
+       IDS_SETTINGS_LEO_ASSISTANT_LM_STUDIO_MANAGED_LABEL},
 #endif  // BUILDFLAG(ENABLE_AI_CHAT)
 
       // Survey Panelist Page

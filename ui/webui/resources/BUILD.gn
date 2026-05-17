@@ -298,6 +298,7 @@ leo_icons_sources = [
   "loading-spinner.svg",
   "location-off.svg",
   "location-on.svg",
+  "lmstudio-color.svg",
   "lock-dots.svg",
   "lock-open.svg",
   "lock-plain.svg",

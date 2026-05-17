@@ -18,6 +18,7 @@ import { getTemplate } from './model_list_section.html.js'
 import {
   OperationResult,
   BraveLeoAssistantBrowserProxyImpl,
+  LM_STUDIO_ENDPOINT,
   OLLAMA_ENDPOINT
 } from './brave_leo_assistant_browser_proxy.js'
 import type {
@@ -52,6 +53,10 @@ class ModelListSection extends ModelListSectionBase {
       isOllamaConnected_: {
         type: Boolean,
         value: false
+      },
+      isLmStudioConnected_: {
+        type: Boolean,
+        value: false
       }
     }
   }
@@ -62,6 +67,7 @@ class ModelListSection extends ModelListSectionBase {
   declare isEditingModelIndex_: number | null
   declare showModelConfig_: boolean
   declare isOllamaConnected_: boolean
+  declare isLmStudioConnected_: boolean
 
   override ready() {
     super.ready()
@@ -80,6 +86,7 @@ class ModelListSection extends ModelListSectionBase {
 
     // Check Ollama connection on page load
     this.checkOllamaConnection_()
+    this.checkLmStudioConnection_()
   }
 
   async onModelConfigSave_(e: { detail: { modelConfig: Model } }) {
@@ -165,6 +172,16 @@ class ModelListSection extends ModelListSectionBase {
     }
   }
 
+  private async checkLmStudioConnection_() {
+    try {
+      const result = await this.browserProxy_.checkLmStudioConnection()
+      this.isLmStudioConnected_ = result.connected
+    } catch (error) {
+      console.error('Failed to check LM Studio connection:', error)
+      this.isLmStudioConnected_ = false
+    }
+  }
+
   private isOllamaManagedModel_(
       model: Model, ollamaSyncEnabled: boolean,
       isOllamaConnected: boolean): boolean {
@@ -175,6 +192,23 @@ class ModelListSection extends ModelListSectionBase {
     const isOllamaEndpoint =
         model.options.customModelOptions?.endpoint === OLLAMA_ENDPOINT
     return isOllamaEndpoint && ollamaSyncEnabled && isOllamaConnected
+  }
+
+  private isLmStudioManagedModel_(
+      model: Model, lmStudioSyncEnabled: boolean,
+      isLmStudioConnected: boolean): boolean {
+    const isLmStudioEndpoint =
+        model.options.customModelOptions?.endpoint === LM_STUDIO_ENDPOINT
+    return isLmStudioEndpoint && lmStudioSyncEnabled && isLmStudioConnected
+  }
+
+  private isManagedProviderModel_(
+      model: Model, ollamaSyncEnabled: boolean, isOllamaConnected: boolean,
+      lmStudioSyncEnabled: boolean, isLmStudioConnected: boolean): boolean {
+    return this.isOllamaManagedModel_(
+        model, ollamaSyncEnabled, isOllamaConnected) ||
+      this.isLmStudioManagedModel_(
+          model, lmStudioSyncEnabled, isLmStudioConnected)
   }
 }
 

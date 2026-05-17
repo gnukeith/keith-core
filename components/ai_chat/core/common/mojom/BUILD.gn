@@ -20,6 +20,7 @@ mojom_component("mojom") {
     "common.mojom",
     "customization_settings.mojom",
     "history.mojom",
+    "lm_studio.mojom",
     "ollama.mojom",
     "page_content_extractor.mojom",
     "settings_helper.mojom",

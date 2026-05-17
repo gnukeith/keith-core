@@ -3,6 +3,10 @@
     margin-bottom: var(--leo-spacing-xl);
   }
 
+  .provider-toggle {
+    margin-bottom: var(--leo-spacing-xl);
+  }
+
   .list {
     display: flex;
     flex-direction: column;
@@ -69,10 +73,22 @@
   if="[[isOllamaConnected_]]"
 >
   <settings-toggle-button
-    class="cr-row ollama-toggle"
+    class="cr-row provider-toggle"
     label="$i18n{braveLeoAssistantOllamaSyncLabel}"
     icon="ollama"
     pref="{{prefs.brave.ai_chat.ollama_fetch_enabled}}">
+  </settings-toggle-button>
+</template>
+
+<template
+  is="dom-if"
+  if="[[isLmStudioConnected_]]"
+>
+  <settings-toggle-button
+    class="cr-row provider-toggle"
+    label="$i18n{braveLeoAssistantLmStudioSyncLabel}"
+    icon="lmstudio-color"
+    pref="{{prefs.brave.ai_chat.lm_studio_fetch_enabled}}">
   </settings-toggle-button>
 </template>
 
@@ -113,12 +129,17 @@
                 $i18n{braveLeoAssistantOllamaManagedLabel}
               </span>
             </template>
+            <template is="dom-if" if="[[isLmStudioManagedModel_(item, prefs.brave.ai_chat.lm_studio_fetch_enabled.value, isLmStudioConnected_)]]">
+              <span class="label-secondary" style="font-size: 12px; padding: 8px;">
+                $i18n{braveLeoAssistantLmStudioManagedLabel}
+              </span>
+            </template>
             <cr-icon-button
               on-click="handleEdit_"
               class="size-20"
               iron-icon="edit-pencil"
             ></cr-icon-button>
-            <template is="dom-if" if="[[!isOllamaManagedModel_(item, prefs.brave.ai_chat.ollama_fetch_enabled.value, isOllamaConnected_)]]">
+            <template is="dom-if" if="[[!isManagedProviderModel_(item, prefs.brave.ai_chat.ollama_fetch_enabled.value, isOllamaConnected_, prefs.brave.ai_chat.lm_studio_fetch_enabled.value, isLmStudioConnected_)]]">
               <cr-icon-button
                 on-click="handleDelete_"
                 class="size-20"

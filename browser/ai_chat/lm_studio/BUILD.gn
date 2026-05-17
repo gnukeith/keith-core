@@ -1,0 +1,28 @@
+# Copyright (c) 2026 The Brave Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+static_library("lm_studio") {
+  visibility = [
+    "//brave/browser/ui",
+    "//brave/browser/ui/webui/ai_chat",
+    "//chrome/browser",
+  ]
+
+  sources = [
+    "lm_studio_service_factory.cc",
+    "lm_studio_service_factory.h",
+  ]
+
+  deps = [
+    "//base",
+    "//brave/browser/ai_chat",
+    "//brave/components/ai_chat/core/browser/lm_studio",
+    "//brave/components/ai_chat/core/common",
+    "//chrome/browser/profiles:profile",
+    "//components/keyed_service/content",
+    "//components/user_prefs",
+    "//content/public/browser",
+  ]
+}

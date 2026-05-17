@@ -1,0 +1,17 @@
+// Copyright (c) 2026 The Brave Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// You can obtain one at https://mozilla.org/MPL/2.0/.
+
+module ai_chat.mojom;
+
+// LM Studio local endpoints
+const string kLmStudioBaseUrl = "http://localhost:1234";
+const string kLmStudioListModelsAPIEndpoint = "http://localhost:1234/v1/models";
+const string kLmStudioEndpoint = "http://localhost:1234/v1/chat/completions";
+
+// Interface for communicating with a local LM Studio instance.
+interface LmStudioService {
+  // Check if LM Studio is running at localhost:1234.
+  IsConnected() => (bool connected);
+};

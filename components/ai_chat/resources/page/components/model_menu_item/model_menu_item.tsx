@@ -36,7 +36,6 @@ const ModelContent = (props: ModelContentProps) => {
   const isOllamaModel = !!(
     model.options.customModelOptions?.endpoint.url === Mojom.OLLAMA_ENDPOINT
   )
-
   const label = React.useMemo(() => {
     if (isCurrent) {
       return (
@@ -90,7 +89,13 @@ const ModelContent = (props: ModelContentProps) => {
       )
     }
     return null
-  }, [isCurrent, showPremiumLabel, isCustomModel, isOllamaModel, model])
+  }, [
+    isCurrent,
+    showPremiumLabel,
+    isCustomModel,
+    isOllamaModel,
+    model,
+  ])
 
   return (
     <>

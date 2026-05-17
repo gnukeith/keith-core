@@ -1887,6 +1887,12 @@
   <message name="IDS_SETTINGS_LEO_ASSISTANT_OLLAMA_MANAGED_LABEL" desc="The label shown for models managed by Ollama">
     Managed by Ollama
   </message>
+  <message name="IDS_SETTINGS_LEO_ASSISTANT_LM_STUDIO_SYNC_LABEL" desc="The label for the LM Studio sync toggle button">
+    Sync your LM Studio local models
+  </message>
+  <message name="IDS_SETTINGS_LEO_ASSISTANT_LM_STUDIO_MANAGED_LABEL" desc="The label shown for models managed by LM Studio">
+    Managed by LM Studio
+  </message>
 
   <!-- Settings / Survey Panelist -->
   <message name="IDS_SETTINGS_SURVEY_PANELIST" desc="Title for an item in the 'Survey Panelist' section of Brave Settings">

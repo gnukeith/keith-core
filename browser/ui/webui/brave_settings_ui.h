@@ -25,6 +25,7 @@
 
 #if BUILDFLAG(ENABLE_AI_CHAT)
 #include "brave/components/ai_chat/core/common/mojom/customization_settings.mojom.h"
+#include "brave/components/ai_chat/core/common/mojom/lm_studio.mojom.h"
 #include "brave/components/ai_chat/core/common/mojom/ollama.mojom.h"
 #include "brave/components/ai_chat/core/common/mojom/settings_helper.mojom.h"
 #endif
@@ -72,6 +73,8 @@ class BraveSettingsUI : public settings::SettingsUI {
   void BindInterface(
       mojo::PendingReceiver<ai_chat::mojom::CustomizationSettingsHandler>
           pending_receiver);
+  void BindInterface(
+      mojo::PendingReceiver<ai_chat::mojom::LmStudioService> pending_receiver);
   void BindInterface(
       mojo::PendingReceiver<ai_chat::mojom::OllamaService> pending_receiver);
 #endif
