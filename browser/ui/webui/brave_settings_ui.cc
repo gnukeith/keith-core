@@ -96,7 +96,7 @@
 #if BUILDFLAG(ENABLE_BRAVE_VPN)
 #include "brave/browser/brave_vpn/brave_vpn_service_factory.h"
 #include "brave/browser/brave_vpn/vpn_utils.h"
-#include "brave/components/brave_vpn/browser/brave_vpn_service_impl.h"
+#include "brave/components/brave_vpn/browser/brave_vpn_service.h"
 #if BUILDFLAG(IS_WIN)
 #include "brave/browser/ui/webui/settings/brave_vpn/brave_vpn_handler.h"
 #endif
@@ -294,8 +294,9 @@ void BraveSettingsUI::AddResources(content::WebUIDataSource* html_source,
 #if BUILDFLAG(ENABLE_EMAIL_ALIASES)
   html_source->AddBoolean(
       "isEmailAliasesEnabled",
-      email_aliases::features::IsEmailAliasesEnabledForProfile(
-          CHECK_DEREF(profile->GetPrefs())));
+      email_aliases::features::IsEmailAliasesEnabled() &&
+          email_aliases::EmailAliasesServiceFactory::GetServiceForProfile(
+              profile));
 #endif
 #if BUILDFLAG(ENABLE_CONTAINERS)
   html_source->AddBoolean(

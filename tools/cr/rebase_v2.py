@@ -88,8 +88,11 @@ _CR_VERSION = r'\d+\.\d+\.\d+\.\d+'
 # Matches the contiguous `!`-separated subcommand prefix of a comment, e.g.
 # `reassign!hash!`, `amend!`, `fixup!`. Git already uses `amend!`, `fixup!`,
 # but brockit uses this format to make it a `!`-separated list for subcommands
-# (e.g `reassign!hash!` → `['reassign', 'hash']`).
-_SUBCOMMAND_RE = re.compile(r'^(?:[A-Za-z]\w*!)+')
+# (e.g `reassign!hash!` → `['reassign', 'hash']`). The first token must start
+# with a letter (it's the subcommand name itself -- `reassign`, `amend`,
+# `fixup`, `squash`); subsequent tokens are allowed to start with a digit so
+# commit short-hashes like `859ab9caa74` are captured intact.
+_SUBCOMMAND_RE = re.compile(r'^[A-Za-z]\w*!(?:\w+!)*')
 
 # Matches a `# <word>! <subject>` autosquash marker line inside a squash
 # editor block (e.g. `# amend! Update from Chromium …`). Group 1 captures
@@ -755,6 +758,12 @@ class MsgBlock:
                 blocks[-1]._extend_message(msg)
             elif msg:
                 blocks.append(MsgBlock(full_message=msg, note=note))
+            elif note is not None and note.command == "fixup!":
+                # A bare `# fixup!` block carries no message of its own
+                # -- git is just echoing the marker for context (this
+                # also happens with stacked `# fixup! fixup! …` markers).
+                # Treat it the same as a `will be skipped:` block.
+                continue
             else:
                 raise EditorRecoverableFailure(
                     f'Unexpected empty message in block. Block lines: '

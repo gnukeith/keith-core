@@ -3,6 +3,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at https://mozilla.org/MPL/2.0/.
 
+from __future__ import annotations
+
 from contextlib import contextmanager
 import logging
 import platform
@@ -188,7 +190,8 @@ class Terminal:
             *,
             env: dict[str, str] | None = None,
             cwd=None,
-            interactive: bool = False):
+            interactive: bool = False,
+            stdin: str | None = None):
         """Runs a command on the terminal.
 
         When `interactive=True`, the subprocess inherits the parent's
@@ -196,6 +199,16 @@ class Terminal:
         spawning editors, pagers, or anything else that needs to take
         over the tty. The returned `CompletedProcess.stdout` /
         `.stderr` are `None` in that case (nothing is captured).
+
+        `env` follows the same semantics as `subprocess.run`: `None` inherits
+        the parent's environment, a dict fully replaces it. If you want to
+        add a few keys on top of `os.environ`, copy it first
+        (`env={**os.environ, ...}`).
+
+                Pass `stdin=` to feed data into the subprocess's stdin. Captured
+        (non-interactive) mode encodes it with utf-8 to match the
+        captured streams; interactive mode rejects `stdin=` because the
+        subprocess owns the tty.
         """
         # Convert all arguments to strings, to avoid issues with `PurePath`
         # being passed arguments
@@ -216,7 +229,11 @@ class Terminal:
             self.update_status(truncate_on_max_length(" ".join(cmd)))
         logging.debug('λ %s', ' '.join(cmd))
 
-        if self.infra_mode:
+        # We don't want the keep alive messages to be printed when interactive
+        # is True, as we are delegating to the called command to provide its own
+        # feedback.
+        arm_keep_alive = self.infra_mode and not interactive
+        if arm_keep_alive:
             self.current_command_start_time = time.time()
             self.running_command = " ".join(cmd)
 
@@ -240,11 +257,23 @@ class Terminal:
                                   text=True,
                                   encoding='utf-8')
 
+        if interactive and stdin is not None:
+            raise ValueError(
+                'terminal.run(): `stdin=` is not supported with '
+                '`interactive=True` (the subprocess owns the tty).')
+
+        # The status spinner has to be stopped before running any commands in
+        # interactive mode, to not interfere with that process's output.
+        paused_status = self.status if interactive and self.status else None
+        if paused_status is not None:
+            paused_status.stop()
+
         try:
             result = subprocess.run(cmd,
                                     check=True,
                                     env=env,
                                     cwd=cwd,
+                                    input=stdin,
                                     **capture_kwargs)
         except subprocess.CalledProcessError as e:
             if e.stderr:
@@ -252,13 +281,18 @@ class Terminal:
                 logging.debug('❯ %s', e.stderr.strip())
             raise e
         finally:
-            if self.infra_mode:
+            if paused_status is not None:
+                paused_status.start()
+            if arm_keep_alive:
                 self.current_command_start_time = None
                 self.running_command = None
 
         return result
 
-    def run_git(self, *cmd, no_trim=False) -> str:
+    def run_git(self,
+                *cmd,
+                no_trim=False,
+                env: dict[str, str] | None = None) -> str:
         """Runs a git command with the arguments provided.
 
     This function returns a proper utf8 string in success, otherwise it allows
@@ -268,13 +302,14 @@ class Terminal:
         *cmd: The command to run, with any arguments.
         no_trim: If True, the output will not be trimmed. This is usually rare
         but preferred when producing the contents of a file.
+        env: Optional environment variables to be forwarded to `terminal.run`.
     e.g:
         self.run_git('add', '-u', '*.patch')
     """
         cmd = ['git'] + list(cmd)
         if no_trim:
-            return self.run(cmd).stdout
-        return self.run(cmd).stdout.strip()
+            return self.run(cmd, env=env).stdout
+        return self.run(cmd, env=env).stdout.strip()
 
     def log_task(self, message):
         """Logs a task to the console using common decorators

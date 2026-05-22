@@ -8,7 +8,6 @@
 #include <optional>
 
 #include "base/check.h"
-#include "base/check_deref.h"
 #include "base/check_is_test.h"
 #include "base/containers/fixed_flat_set.h"
 #include "base/feature_list.h"
@@ -21,6 +20,9 @@
 #include "brave/browser/ui/browser_commands.h"
 #include "brave/browser/ui/focus_mode/focus_mode_utils.h"
 #include "brave/browser/ui/sidebar/sidebar_utils.h"
+#include "brave/browser/workspaces/features.h"
+#include "brave/browser/workspaces/workspace_service.h"
+#include "brave/browser/workspaces/workspace_service_factory.h"
 #include "brave/components/ai_chat/core/common/buildflags/buildflags.h"
 #include "brave/components/brave_news/common/buildflags/buildflags.h"
 #include "brave/components/brave_rewards/core/rewards_util.h"
@@ -64,7 +66,7 @@
 #if BUILDFLAG(ENABLE_BRAVE_VPN)
 #include "brave/browser/brave_vpn/brave_vpn_service_factory.h"
 #include "brave/browser/brave_vpn/vpn_utils.h"
-#include "brave/components/brave_vpn/browser/brave_vpn_service_impl.h"
+#include "brave/components/brave_vpn/browser/brave_vpn_service.h"
 #include "brave/components/brave_vpn/common/pref_names.h"
 #endif
 
@@ -98,6 +100,7 @@
 #endif
 
 #if BUILDFLAG(ENABLE_EMAIL_ALIASES)
+#include "brave/browser/email_aliases/email_aliases_service_factory.h"
 #include "brave/browser/ui/email_aliases/email_aliases_controller.h"
 #include "brave/components/email_aliases/features.h"
 #endif
@@ -356,9 +359,11 @@ void BraveBrowserCommandController::InitBraveCommandState() {
   UpdateCommandEnabled(IDC_EXPORT_ALL_BOOKMARKS, true);
 
 #if BUILDFLAG(ENABLE_EMAIL_ALIASES)
-  UpdateCommandEnabled(IDC_SHOW_EMAIL_ALIASES,
-                       email_aliases::features::IsEmailAliasesEnabledForProfile(
-                           CHECK_DEREF(browser_->profile()->GetPrefs())));
+  UpdateCommandEnabled(
+      IDC_SHOW_EMAIL_ALIASES,
+      email_aliases::features::IsEmailAliasesEnabled() &&
+          email_aliases::EmailAliasesServiceFactory::GetServiceForProfile(
+              browser_->profile()));
 #endif
 
 #if BUILDFLAG(ENABLE_CONTAINERS)
@@ -366,6 +371,17 @@ void BraveBrowserCommandController::InitBraveCommandState() {
       IDC_NEW_TEMPORARY_CONTAINER,
       ContainersServiceFactory::GetForProfile(browser_->profile()));
 #endif
+
+  // Reload options if person has an update in workspaces
+  if (base::FeatureList::IsEnabled(features::kWorkspaces) &&
+      browser_->is_type_normal()) {
+    UpdateCommandForWorkspace();
+    pref_change_registrar_.Add(
+        kWorkspacesMetadataPref,
+        base::BindRepeating(
+            &BraveBrowserCommandController::UpdateCommandForWorkspace,
+            base::Unretained(this)));
+  }
 
   if (browser_->is_type_normal()) {
     // Delete these when upstream enables by default.
@@ -459,9 +475,8 @@ void BraveBrowserCommandController::UpdateCommandForBraveVPN() {
   if (auto* vpn_service = brave_vpn::BraveVpnServiceFactory::GetForProfile(
           browser_->profile())) {
     // Only show vpn sub menu for purchased user.
-    UpdateCommandEnabled(IDC_BRAVE_VPN_MENU, vpn_service->is_purchased_user());
-    UpdateCommandEnabled(IDC_TOGGLE_BRAVE_VPN,
-                         vpn_service->is_purchased_user());
+    UpdateCommandEnabled(IDC_BRAVE_VPN_MENU, vpn_service->IsPurchased());
+    UpdateCommandEnabled(IDC_TOGGLE_BRAVE_VPN, vpn_service->IsPurchased());
   }
 #endif
 }
@@ -542,6 +557,17 @@ void BraveBrowserCommandController::UpdateCommandForSplitView() {
        {IDC_BREAK_TILE, IDC_SWAP_SPLIT_VIEW}) {
     UpdateCommandEnabled(command_enabled_when_tab_is_split, is_split_tabs);
   }
+}
+
+void BraveBrowserCommandController::UpdateCommandForWorkspace() {
+  auto* service = WorkspaceServiceFactory::GetForProfile(browser_->profile());
+
+  if (!service) {
+    return;
+  }
+
+  UpdateCommandEnabled(IDC_SAVE_WORKSPACE, true);
+  UpdateCommandEnabled(IDC_OPEN_WORKSPACE, !service->ListWorkspaces().empty());
 }
 
 void BraveBrowserCommandController::UpdateCommandForBraveSync() {
@@ -816,6 +842,18 @@ bool BraveBrowserCommandController::ExecuteBraveCommandWithDisposition(
     }
     case IDC_TOGGLE_FOCUS_MODE:
       brave::ToggleFocusMode(base::to_address(browser_));
+      break;
+    case IDC_SAVE_WORKSPACE:
+      if (auto* svc =
+              WorkspaceServiceFactory::GetForProfile(browser_->profile())) {
+        svc->ShowSaveWorkspaceDialog();
+      }
+      break;
+    case IDC_OPEN_WORKSPACE:
+      if (auto* svc =
+              WorkspaceServiceFactory::GetForProfile(browser_->profile())) {
+        svc->ShowOpenWorkspaceDialog();
+      }
       break;
     default:
       LOG(WARNING) << "Received Unimplemented Command: " << id;

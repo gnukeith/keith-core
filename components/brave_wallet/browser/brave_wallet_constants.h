@@ -694,6 +694,8 @@ inline constexpr webui::LocalizedString kLocalizedStrings[] = {
     {"braveWalletAddAsset", IDS_BRAVE_WALLET_ADD_ASSET},
     {"braveWalletAccountsExport", IDS_BRAVE_WALLET_ACCOUNTS_EXPORT},
     {"braveWalletAccountsDeposit", IDS_BRAVE_WALLET_ACCOUNTS_DEPOSIT},
+    {"braveWalletAccountsHide", IDS_BRAVE_WALLET_ACCOUNTS_HIDE},
+    {"braveWalletAccountsRestore", IDS_BRAVE_WALLET_ACCOUNTS_RESTORE},
     {"braveWalletAccountsRemove", IDS_BRAVE_WALLET_ACCOUNTS_REMOVE},
     {"braveWalletAccountSettings", IDS_BRAVE_WALLET_ACCOUNT_SETTINGS},
     {"braveWalletLastUpdatedAgo", IDS_BRAVE_WALLET_LAST_UPDATED_AGO},
@@ -1822,9 +1824,7 @@ inline constexpr char kCryptoFilAddressKey[] = "crypto.FIL.address";
 
 // ERC-165 identifier for ERC721 interface.
 inline constexpr char kERC1155InterfaceId[] = "0xd9b67a26";
-inline constexpr char kERC1155MetadataInterfaceId[] = "0x0e89341c";
 inline constexpr char kERC721InterfaceId[] = "0x80ac58cd";
-inline constexpr char kERC721MetadataInterfaceId[] = "0x5b5e139f";
 
 inline constexpr char kEthereumBlockTagEarliest[] = "earliest";
 inline constexpr char kEthereumBlockTagLatest[] = "latest";

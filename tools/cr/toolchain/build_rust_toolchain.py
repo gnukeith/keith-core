@@ -69,10 +69,12 @@ import logging
 from pathlib import Path, PurePath
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
 import tarfile
+import tomllib
 from types import ModuleType
 
 # Filename of the LLVM linker binary produced by the Chromium LLVM build.
@@ -115,11 +117,11 @@ if sys.platform == 'win32':
 
 
 def _check_call(*command, cwd=None):
-    """Run *command* as a subprocess, logging the invocation and any stderr.
+    """Run *command* as a subprocess, logging the invocation.
 
-    Logs the full command string at INFO level before executing it.  If the
-    process exits with a non-zero return code, any captured stderr is logged
-    at WARNING level before the `CalledProcessError` is re-raised.
+    Logs the full command string at INFO level before executing it.  Stdout
+    and stderr are inherited from the parent process so subprocess output
+    streams directly to the terminal.
 
     Args:
         *command: The program and its arguments (passed as positional args,
@@ -145,12 +147,7 @@ def _check_call(*command, cwd=None):
         if resolved != command[0]:
             command = [resolved] + list(command[1:])
 
-    try:
-        subprocess.run(command, cwd=cwd, check=True, stderr=subprocess.PIPE)
-    except subprocess.CalledProcessError as e:
-        if e.stderr:
-            logging.warning(e.stderr.decode('utf-8', errors='replace').strip())
-        raise
+    subprocess.run(command, cwd=cwd, check=True)
 
 
 class ToolchainBuilder:
@@ -177,9 +174,8 @@ class ToolchainBuilder:
          from the stage-1 rustlib output, stored verbatim.
 
     Phases 1 and 2 are wrapped in `_temporary_config_toml_template_edits`,
-    which appends `profiler = false` for the wasm32 target to
-    `config.toml.template` and restores the file (via `git checkout`)
-    both before the build starts and in a `finally` block afterwards.
+    which appends a `[target.wasm32-unknown-unknown]` stanza to
+    `config.toml.template` (inherited from the host stanza).
     """
 
     def __init__(self, chromium_src: str, out_dir: str):
@@ -211,15 +207,35 @@ class ToolchainBuilder:
         # Module for tools/rust/package_rust.py. Initialised by `run()`.
         self.package_rust_module: ModuleType | None = None
 
+    def _native_target_stanza(self) -> dict[str, str | bool]:
+        """Return the `[target.<native-triple>]` table from the template.
+
+        `$LLVM_BIN` placeholders inside string values are preserved verbatim
+        — `build_rust.py` substitutes them when it generates `config.toml`.
+        Bare `$UPPERCASE` placeholder lines (e.g. `$CHANGELOG_SEEN`) are not
+        valid TOML on their own, so they are stripped before parsing.
+        """
+        target_triple = self.build_rust_module.RustTargetTriple()
+        text = self.config_toml_template.read_bytes().decode('utf-8')
+        text = re.sub(r'(?m)^\$[A-Z_]+\s*$\n?', '', text)
+        data = tomllib.loads(text)
+        return dict(data['target'][target_triple])
+
+    @staticmethod
+    def _emit_toml_kv(key: str, value: str | bool) -> str:
+        """Render a single key/value pair as a TOML assignment line."""
+        if isinstance(value, bool):
+            return f'{key} = {"true" if value else "false"}'
+        return f'{key} = "{value}"'
+
     @contextlib.contextmanager
     def _temporary_config_toml_template_edits(self):
         """Context manager: patch `config.toml.template` for the build.
 
         `build_rust.py` generates `config.toml` from
-        `tools/rust/config.toml.template`.  For the wasm32 target we need
-        to set `profiler = false` (otherwise the profiling infrastructure
-        required by the full toolchain build is pulled in, but is not needed
-        for our subset).
+        `tools/rust/config.toml.template`.  We append a
+        `[target.wasm32-unknown-unknown]` stanza that inherits most of the
+        host target's settings, and then we do a few changes to them.
 
         Protocol:
         1. Restore the template to its HEAD state via `git checkout` before
@@ -235,9 +251,45 @@ class ToolchainBuilder:
                         str(self.config_toml_template))
 
         _restore_config_toml_template()
+
+        # Always filtering out linker, as WASM builds with rust-lld.
+        wasm = {
+            k: v
+            for k, v in self._native_target_stanza().items()
+            if k not in ('linker', 'jemalloc')
+        }
+
+        # The Windows host stanza names MSVC-style frontends from the LLVM
+        # install (`clang-cl.exe`, `llvm-lib.exe`); wasm32's compiler-builtins
+        # build expects GNU-style ones (`clang.exe`, `llvm-ar.exe`) which sit
+        # in the same `bin/`. The replacements are no-ops on macOS/Linux
+        # because the host stanzas there already use the GNU names.
+        msvc_to_gnu = {
+            'clang-cl.exe': 'clang.exe',
+            'llvm-lib.exe': 'llvm-ar.exe',
+        }
+
+        def _swap(value: str) -> str:
+            for msvc, gnu in msvc_to_gnu.items():
+                value = value.replace(msvc, gnu)
+            return value
+
+        wasm = {
+            k: _swap(v) if isinstance(v, str) else v
+            for k, v in wasm.items()
+        }
+
+        # Disabling profiler for all configurations.
+        wasm['profiler'] = False
+
+        stanza = '\n'.join([
+            f'[target.{WASM32_UNKNOWN_UNKNOWN}]',
+            *(self._emit_toml_kv(k, v) for k, v in wasm.items())
+        ])
+
+        logging.info('Appending to %s:\n%s', self.config_toml_template, stanza)
         with self.config_toml_template.open('a') as file:
-            file.write(
-                f'\n[target.{WASM32_UNKNOWN_UNKNOWN}]\nprofiler = false\n')
+            file.write('\n' + stanza + '\n')
 
         try:
             yield
@@ -419,12 +471,36 @@ class ToolchainBuilder:
                 'https://vhemnu34de4lf5cj6bx2wwshyy0egdxk.lambda-url.us-west-'
                 '2.on.aws/windows-hermetic-toolchain/')
 
+        if re.fullmatch(r'\d+\.\d+\.\d+\.\d+', ref):
+            # Chromium release tag (e.g. `150.0.7850.1`): fetch it as a tag so
+            # it lands at `refs/tags/<ref>` in the local repo.
+            _check_call('git',
+                        'fetch',
+                        '--no-tags',
+                        'origin',
+                        f'refs/tags/{ref}:refs/tags/{ref}',
+                        cwd=self.chromium_src)
+        else:
+            _check_call('git', 'fetch', 'origin', ref, cwd=self.chromium_src)
+
+        # We are doing a `git checkout --force` rather than just using
+        # `gclient sync -r {ref}`, as there is a an gclient bug that lurks
+        # around which is not clear if we are hitting on the window bot, so for
+        # the sake of preventing that to beging with, we do the checkout
+        # manually.
+        #
+        # For details see:
+        #   https://github.com/brave/brave-browser/issues/44921
+        _check_call('git',
+                    'checkout',
+                    '--force',
+                    'FETCH_HEAD',
+                    cwd=self.chromium_src)
+
         _check_call('gclient',
                     'sync',
                     '--force',
                     '-D',
-                    '-r',
-                    f'src@{ref}',
                     cwd=self.chromium_src)
         _check_call('git',
                     'log',
@@ -467,7 +543,6 @@ class ToolchainBuilder:
         self.chromium_src.parent.mkdir(parents=True, exist_ok=True)
         _check_call('fetch',
                     '--nohooks',
-                    '--nohistory',
                     'chromium',
                     cwd=self.chromium_src.parent)
 
@@ -522,7 +597,12 @@ class ToolchainBuilder:
         if not self.tools_rust.is_dir():
             raise RuntimeError(f'{self.tools_rust} directory not found.')
 
-        # Loading the build modules from `src/tools/rust/`.
+        if use_ref:
+            self._checkout_chromium_ref(use_ref)
+
+        # Only loading the rust libs now that the desired git ref checkout is
+        # done, otherwise the runtime would already be loaded with whatever rust
+        # version values were in disk.
         tools_rust_str: str = str(self.tools_rust)
         if tools_rust_str not in sys.path:
             sys.path.insert(0, tools_rust_str)
@@ -532,9 +612,6 @@ class ToolchainBuilder:
         if not self.package_rust_module:
             self.package_rust_module: ModuleType = importlib.import_module(
                 'package_rust')
-
-        if use_ref:
-            self._checkout_chromium_ref(use_ref)
 
         # Build process
         if sys.platform == 'win32' and shutil.which('sh') is None:
@@ -621,6 +698,8 @@ def main():
         logging.info('Setting GIT_CACHE_PATH for the build: %s',
                      git_cache_path)
         os.environ['GIT_CACHE_PATH'] = str(git_cache_path)
+
+    logging.info('Using GIT_CACHE_PATH=%s', os.environ.get('GIT_CACHE_PATH'))
 
     ToolchainBuilder(args.chromium_src,
                      args.out_dir).run(args.clone_chromium, args.use_ref)

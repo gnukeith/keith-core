@@ -5,7 +5,6 @@
 
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 
-#include "base/check_deref.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
 #include "brave/browser/ui/brave_browser_window.h"
@@ -14,6 +13,7 @@
 #include "brave/browser/ui/sidebar/sidebar_controller.h"
 #include "brave/browser/ui/sidebar/sidebar_utils.h"
 #include "brave/browser/ui/tabs/brave_browser_tab_menu_model_delegate.h"
+#include "brave/browser/ui/views/frame/brave_non_client_hit_test_helper.h"
 #include "brave/browser/ui/views/page_info/brave_shields_ui_contents_cache.h"
 #include "brave/components/brave_rewards/core/buildflags/buildflags.h"
 #include "brave/components/brave_vpn/common/buildflags/buildflags.h"
@@ -97,6 +97,9 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
           browser->GetSessionID(), profile, app_browser_controller_.get(),
           tab_groups::TabGroupSyncServiceFactory::GetForProfile(profile),
           browser);
+
+  brave_non_client_hit_test_helper_ =
+      std::make_unique<BraveNonClientHitTestHelper>();
 }
 
 void BrowserWindowFeatures::InitPostBrowserViewConstruction(
@@ -115,14 +118,14 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
   }
 
 #if BUILDFLAG(ENABLE_EMAIL_ALIASES)
-  if (email_aliases::features::IsEmailAliasesEnabledForProfile(
-          CHECK_DEREF(browser_view->GetProfile()->GetPrefs()))) {
-    email_aliases_controller_ =
-        std::make_unique<email_aliases::EmailAliasesController>(
-            browser_view,
-            &CHECK_DEREF(
-                email_aliases::EmailAliasesServiceFactory::GetServiceForProfile(
-                    browser_view->GetProfile())));
+  if (email_aliases::features::IsEmailAliasesEnabled()) {
+    if (auto* email_aliases_service =
+            email_aliases::EmailAliasesServiceFactory::GetServiceForProfile(
+                browser_view->GetProfile())) {
+      email_aliases_controller_ =
+          std::make_unique<email_aliases::EmailAliasesController>(
+              browser_view, email_aliases_service);
+    }
   }
 #endif
 

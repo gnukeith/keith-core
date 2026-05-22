@@ -16,7 +16,6 @@ import("//brave/browser/brave_ads/android/java_sources.gni")
 import("//brave/browser/hub/internal/android/java/java_sources.gni")
 import("//brave/browser/incognito/android/java_sources.gni")
 import("//brave/browser/share/android/java_sources.gni")
-import("//brave/browser/tab_ui/android/brave_tab_ui_sources.gni")
 import("//brave/browser/ui/messages/android/java_sources.gni")
 import(
     "//brave/components/cached_flags/brave_components_cached_flags_java_sources.gni")
@@ -28,6 +27,7 @@ brave_java_sources = [
   "../../brave/android/java/org/chromium/chrome/browser/BraveAdFreeCalloutDialogFragment.java",
   "../../brave/android/java/org/chromium/chrome/browser/BraveAppHooks.java",
   "../../brave/android/java/org/chromium/chrome/browser/BraveApplicationImplBase.java",
+  "../../brave/android/java/org/chromium/chrome/browser/BraveConstants.java",
   "../../brave/android/java/org/chromium/chrome/browser/BraveDialogFragment.java",
   "../../brave/android/java/org/chromium/chrome/browser/BraveFeatureUtil.java",
   "../../brave/android/java/org/chromium/chrome/browser/BraveHelper.java",
@@ -91,6 +91,7 @@ brave_java_sources = [
   "../../brave/android/java/org/chromium/chrome/browser/brave_news/LinearLayoutManagerWrapper.java",
   "../../brave/android/java/org/chromium/chrome/browser/brave_news/models/FeedItemCard.java",
   "../../brave/android/java/org/chromium/chrome/browser/brave_news/models/FeedItemsCard.java",
+  "../../brave/android/java/org/chromium/chrome/browser/brave_origin/BraveOriginDeepLinkHandler.java",
   "../../brave/android/java/org/chromium/chrome/browser/brave_origin/BraveOriginPlansActivity.java",
   "../../brave/android/java/org/chromium/chrome/browser/brave_origin/BraveOriginSubscriptionPrefs.java",
   "../../brave/android/java/org/chromium/chrome/browser/brave_stats/BraveStatsBottomSheetDialogFragment.java",
@@ -236,7 +237,6 @@ brave_java_sources = [
   "../../brave/android/java/org/chromium/chrome/browser/language/settings/BraveLanguageSettings.java",
   "../../brave/android/java/org/chromium/chrome/browser/local_database/BraveStatsTable.java",
   "../../brave/android/java/org/chromium/chrome/browser/local_database/DatabaseHelper.java",
-  "../../brave/android/java/org/chromium/chrome/browser/local_database/DisplayAdsTable.java",
   "../../brave/android/java/org/chromium/chrome/browser/local_database/SavedBandwidthTable.java",
   "../../brave/android/java/org/chromium/chrome/browser/local_database/TopSiteTable.java",
   "../../brave/android/java/org/chromium/chrome/browser/media/BraveFullscreenVideoPictureInPictureController.java",
@@ -447,7 +447,6 @@ brave_java_sources = [
   "../../brave/android/java/org/chromium/chrome/browser/undo_tab_close_snackbar/BraveUndoBarControllerBase.java",
   "../../brave/android/java/org/chromium/chrome/browser/upgrade/BravePackageReplacedBroadcastReceiver.java",
   "../../brave/android/java/org/chromium/chrome/browser/upgrade/NotificationIntent.java",
-  "../../brave/android/java/org/chromium/chrome/browser/util/BraveConstants.java",
   "../../brave/android/java/org/chromium/chrome/browser/util/BraveDbUtil.java",
   "../../brave/android/java/org/chromium/chrome/browser/util/BraveDynamicColors.java",
   "../../brave/android/java/org/chromium/chrome/browser/util/BraveTouchUtils.java",

@@ -55,6 +55,23 @@ class EntryLineParseTest(unittest.TestCase):
         self.assertEqual(entry_line.subcommand, ['reassign', 'c080270dd7e'])
         self.assertEqual(entry_line.message, '[cr149] Fix bookmark bar.')
 
+    def test_parse_reassign_subcommand_hash_starting_with_digit(self):
+        """`reassign!<hash>!` where `<hash>` starts with a digit must
+        still capture both tokens. Regression: an earlier regex required
+        every `!`-separated token to start with a letter, which silently
+        dropped digit-leading hashes -- the subcommand collapsed to
+        `['reassign']` and the hash leaked into `message`, causing
+        `rewrite_plan` to orphan-drop the reassign."""
+        entry_line = rebase_v2.EntryLine.parse(
+            'pick 04d3a656bb1 # reassign!859ab9caa74! [cr150][ios] Add '
+            '//brave/ios/browser/svg to visibility for //third_party/expat\n')
+        self.assertEqual(entry_line.subcommand, ['reassign', '859ab9caa74'])
+        self.assertEqual(
+            entry_line.message,
+            '[cr150][ios] Add //brave/ios/browser/svg to visibility for '
+            '//third_party/expat')
+        self.assertEqual(entry_line.reassign_target_hash, '859ab9caa74')
+
     def test_parse_trailing_empty_note(self):
         """A trailing ` # empty` marker is split into `note` and stripped
         out of the comment portion."""
@@ -485,6 +502,34 @@ class RewritePlanTest(unittest.TestCase):
             'pick zzz # reassign!bbb! [cr148] Feature B\n'
             'squash bbb # [cr148] Feature B\n')
 
+    def test_squashed_reassign_target_hash_starts_with_digit(self):
+        """Real-world regression: a `reassign!<hash>!` where the hash
+        starts with a digit (which is the case for ~6/16 short hashes on
+        average) must still be matched to its target. Previously the
+        subcommand regex required each token to start with a letter, so
+        the hash never made it into `subcommand` -- the reassign was
+        silently dropped and the target was left untouched."""
+        path = self._todo(
+            'pick 7606227b5da # [cr150][ios] Add backend promo provider\n'
+            'pick 859ab9caa74 # [cr150][ios] Add //brave/ios/browser/svg '
+            'to visibility for //third_party/expat\n'
+            'pick 04d3a656bb1 # reassign!859ab9caa74! [cr150][ios] Add '
+            '//brave/ios/browser/svg to visibility for '
+            '//third_party/expat # empty\n'
+            'pick 9c160e03412 # [cr150] wip-reassing-bug\n')
+
+        rebase_v2.rewrite_plan(todo_file=path, pinned_squashed=True)
+
+        self.assertEqual(
+            path.read_text(),
+            'pick 7606227b5da # [cr150][ios] Add backend promo provider\n'
+            'pick 04d3a656bb1 # reassign!859ab9caa74! [cr150][ios] Add '
+            '//brave/ios/browser/svg to visibility for '
+            '//third_party/expat # empty\n'
+            'squash 859ab9caa74 # [cr150][ios] Add //brave/ios/browser/svg '
+            'to visibility for //third_party/expat\n'
+            'pick 9c160e03412 # [cr150] wip-reassing-bug\n')
+
     def test_squashed_reassign_falls_back_to_message_match(self):
         """Non-matching hash, matching message: the hash lookup misses,
         so the reassign falls back to matching by commit subject."""
@@ -773,6 +818,44 @@ class MessageWriterTest(unittest.TestCase):
             'Update from Chromium 1.0.0.1 to Chromium 1.0.0.2',
         ])
 
+    def test_bare_fixup_block_is_skipped(self):
+        """When the user has stacked `fixup!` commits on top of an
+        already-fixup commit, git emits the marker-only `# fixup!`
+        (or `# fixup! fixup! ...`) inside a regular `# This is the
+        commit message #N:` header with no body. Those blocks carry
+        nothing to merge -- treat them like `will be skipped:` rather
+        than failing the parse."""
+        path = self._file(
+            '# This is a combination of 4 commits.\n'
+            '# This is the 1st commit message:\n'
+            '\n'
+            'Conflict-resolved patches from Chromium 1.0.0.0 to '
+            'Chromium 1.0.0.1.\n'
+            '\n'
+            '# This is the commit message #2:\n'
+            '\n'
+            '# fixup! Conflict-resolved patches from Chromium 1.0.0.0 to '
+            'Chromium 1.0.0.1.\n'
+            '\n'
+            '# This is the commit message #3:\n'
+            '\n'
+            '# fixup! fixup! Conflict-resolved patches from Chromium 1.0.0.0 '
+            'to Chromium 1.0.0.1.\n'
+            '\n'
+            '# This is the commit message #4:\n'
+            '\n'
+            'Conflict-resolved patches from Chromium 1.0.0.2 to '
+            'Chromium 1.0.0.3.\n')
+
+        writer = rebase_v2.MessageWriter.parse(path)
+
+        self.assertEqual(self._messages(writer), [
+            'Conflict-resolved patches from Chromium 1.0.0.0 to '
+            'Chromium 1.0.0.1.',
+            'Conflict-resolved patches from Chromium 1.0.0.2 to '
+            'Chromium 1.0.0.3.',
+        ])
+
     def test_git_footer_terminates_parsing(self):
         """Anything after `# Please enter the commit message ...` is
         ignored, including stale `# This is ...` lines from git's status
@@ -971,6 +1054,56 @@ class RebaseV2ExecuteTest(unittest.TestCase):
             'Update from Chromium 1.0.0.3 to Chromium 1.0.0.4',
             'Add brave-only feature.txt',
             '[cr148] Some unrelated feature commit',
+        ])
+
+    def _commit_fixup(self, target: str = 'HEAD') -> str:
+        """Stages a unique gen-N.txt and commits it with `git commit
+        --fixup=<target>`. Mirrors what `git commit --fixup` produces in
+        the wild: a commit whose subject is `fixup! <target subject>`
+        and whose body is empty. Stacking a second call (with the
+        previous fixup as target) yields a `fixup! fixup! <subject>`
+        subject -- the marker-only blocks that broke `MsgBlock.parse`."""
+        self._commit_counter += 1
+        self.repo.write_and_stage_file(f'gen-{self._commit_counter}.txt',
+                                       f'fixup {self._commit_counter}\n',
+                                       self.repo.brave)
+        self.repo._run_git_command(['commit', f'--fixup={target}'],
+                                   self.repo.brave)
+        return self.repo._run_git_command(['rev-parse', 'HEAD'],
+                                          self.repo.brave)
+
+    def test_v2_squash_minor_bumps_with_stacked_fixup_commits(self):
+        """Regression: `git commit --fixup=<conflict-resolved commit>` (and
+        a stacked fixup of that fixup) produces commits whose message is
+        only the autosquash marker -- `fixup! …` and `fixup! fixup! …`
+        with empty bodies. After `--autosquash` chains them next to the
+        pinned target and v2's `squash_minor_bumps` collapses the whole
+        group, git emits those as marker-only `# fixup!` blocks inside
+        the squash editor file. `MsgBlock.parse` used to raise
+        `EditorRecoverableFailure` for them; the rebase must instead
+        complete and keep the latest pinned subject."""
+        scenario = self._seed_bump_branch()
+        first_pinned = self._commit_with_file(
+            'Conflict-resolved patches from Chromium 1.0.0.1 to '
+            'Chromium 1.0.0.2.')
+        inner_fixup = self._commit_fixup(target=first_pinned)
+        self._commit_fixup(target=inner_fixup)
+        self._commit_with_file(
+            'Conflict-resolved patches from Chromium 1.0.0.2 to '
+            'Chromium 1.0.0.3.')
+
+        brockit.Rebase().execute(from_ref=scenario['v101'],
+                                 to_ref=scenario['v102'],
+                                 recommit=False,
+                                 discard_regen_changes=False,
+                                 squash_minor_bumps=True,
+                                 v2=True)
+
+        subjects = self._git_log_subjects(scenario['v102'] + '..HEAD')
+        self.assertEqual(subjects, [
+            'Conflict-resolved patches from Chromium 1.0.0.2 to '
+            'Chromium 1.0.0.3.',
+            'Add brave-only feature.txt',
         ])
 
     def test_v2_recommit_amends_first_commit(self):

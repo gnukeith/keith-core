@@ -509,6 +509,7 @@ test("brave_unit_tests") {
       "//brave/browser/ui/webui/settings:unit_tests",
       "//brave/browser/ui/webui/side_panel/customize_chrome:unit_tests",
       "//brave/browser/ui/whats_new:unit_test",
+      "//brave/browser/workspaces:unit_tests",
       "//brave/components/ai_chat/core/common/buildflags",
       "//brave/components/brave_shields/core/common:mojom",
       "//brave/components/brave_vpn/common/buildflags",
@@ -1224,12 +1225,12 @@ test("brave_browser_tests") {
       "//brave/browser/brave_wallet/solana_provider_browsertest.cc",
       "//brave/browser/brave_wallet/solana_provider_renderer_browsertest.cc",
       "//brave/browser/brave_wallet/wallet_watch_asset_browsertest.cc",
-      "//brave/browser/ui/webui/brave_wallet/wallet_panel_ui_browsertest.cc",
     ]
 
     if (!is_android) {
-      sources += [
-        "//brave/browser/ui/webui/brave_wallet/trezor/trezor_ui_browsertest.cc",
+      deps += [
+        "//brave/browser/ui/webui/brave_wallet/trezor:browser_tests",
+        "//brave/browser/ui/webui/brave_wallet/wallet_panel:browser_tests",
       ]
     }
   }
@@ -1673,9 +1674,11 @@ if (is_android) {
       "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser",
       "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser.app",
       "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser.autofill",
+      "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser.brave_origin",
       "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser.custom_search_engines",
       "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser.homepage",
       "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser.ntp",
+      "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser.quick_search_engines",
       "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser.rate",
       "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser.referrer",
       "//brave/android/junit:brave_junit_tests_org.chromium.chrome.browser.settings",

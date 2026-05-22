@@ -355,8 +355,10 @@ if (enable_brave_wallet) {
     "//brave/components/decentralized_dns/core",
   ]
   if (!is_android) {
-    brave_chrome_browser_deps +=
-        [ "//brave/browser/brave_wallet/notifications" ]
+    brave_chrome_browser_deps += [
+      "//brave/browser/brave_wallet/notifications",
+      "//brave/browser/ui/webui/brave_wallet/wallet_panel",
+    ]
   }
 }
 
@@ -415,6 +417,8 @@ if (!is_android) {
     "//brave/browser/ui/webui/brave_new_tab_page_refresh",
     "//brave/browser/ui/webui/brave_new_tab_page_refresh:mojom",
     "//brave/browser/ui/webui/brave_welcome_page",
+    "//brave/browser/workspaces",
+    "//brave/browser/workspaces:impl",
     "//brave/ui/webui/brave_color_change_listener",
     "//chrome/browser/regional_capabilities",
     "//chrome/browser/ui/thumbnails",

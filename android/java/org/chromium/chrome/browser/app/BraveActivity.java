@@ -98,6 +98,7 @@ import org.chromium.brave_wallet.mojom.SolanaTxManagerProxy;
 import org.chromium.brave_wallet.mojom.TxService;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.BraveAdFreeCalloutDialogFragment;
+import org.chromium.chrome.browser.BraveConstants;
 import org.chromium.chrome.browser.BraveHelper;
 import org.chromium.chrome.browser.BraveIntentHandler;
 import org.chromium.chrome.browser.BraveRelaunchUtils;
@@ -118,6 +119,7 @@ import org.chromium.chrome.browser.brave_leo.BraveLeoUtils;
 import org.chromium.chrome.browser.brave_leo.BraveLeoVoiceRecognitionHandler;
 import org.chromium.chrome.browser.brave_news.BraveNewsUtils;
 import org.chromium.chrome.browser.brave_news.models.FeedItemsCard;
+import org.chromium.chrome.browser.brave_origin.BraveOriginDeepLinkHandler;
 import org.chromium.chrome.browser.brave_origin.BraveOriginSubscriptionPrefs;
 import org.chromium.chrome.browser.brave_shields.BraveFirstPartyStorageCleanerUtils;
 import org.chromium.chrome.browser.brave_shields.FirstPartyStorageCleanerAnimationFragment;
@@ -205,7 +207,6 @@ import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarController;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManagerProvider;
-import org.chromium.chrome.browser.util.BraveConstants;
 import org.chromium.chrome.browser.util.BraveDbUtil;
 import org.chromium.chrome.browser.util.KeyboardVisibilityHelper;
 import org.chromium.chrome.browser.util.LiveDataUtil;
@@ -995,10 +996,16 @@ public abstract class BraveActivity extends ChromeActivity
 
     @Override
     public void initializeState() {
+        Intent intent = getIntent();
+        boolean isOriginPromoDeepLink = BraveOriginDeepLinkHandler.consumeFromIntent(intent);
         if (BraveFreshNtpHelper.isEnabled()) {
             setForegroundSessionEndsTriggered();
         }
         super.initializeState();
+        if (isOriginPromoDeepLink) {
+            mIsDeepLink = true;
+            BraveOriginDeepLinkHandler.open(this);
+        }
         if (isNoRestoreState()) {
             CommandLine.getInstance().appendSwitch(ChromeSwitches.NO_RESTORE_STATE);
         }
@@ -1007,7 +1014,6 @@ public abstract class BraveActivity extends ChromeActivity
         setComesFromNewTab(false);
         setNewsItemsFeedCards(null);
         BraveSearchEngineUtils.initializeBraveSearchEngineStates(getTabModelSelector());
-        Intent intent = getIntent();
         if (intent != null
                 && intent.getBooleanExtra(BraveWalletActivity.RESTART_WALLET_ACTIVITY, false)) {
             openBraveWallet(
@@ -1403,6 +1409,9 @@ public abstract class BraveActivity extends ChromeActivity
             ChromeSharedPreferences.getInstance()
                     .writeBoolean(BravePreferenceKeys.BRAVE_DEFERRED_DEEPLINK_VPN, false);
             handleDeepLinkVpn();
+        } else if (BraveOriginDeepLinkHandler.consumeDeferred()) {
+            mIsDeepLink = true;
+            BraveOriginDeepLinkHandler.open(this);
         }
 
         // Added to reset app links settings for upgrade case
@@ -2365,7 +2374,12 @@ public abstract class BraveActivity extends ChromeActivity
 
     @Override
     public void onNewIntent(Intent intent) {
+        boolean isOriginPromoDeepLink = BraveOriginDeepLinkHandler.consumeFromIntent(intent);
         super.onNewIntent(intent);
+        if (isOriginPromoDeepLink) {
+            mIsDeepLink = true;
+            BraveOriginDeepLinkHandler.open(this);
+        }
         if (intent != null) {
             String openUrl = intent.getStringExtra(BraveActivity.OPEN_URL);
             if (!TextUtils.isEmpty(openUrl)) {

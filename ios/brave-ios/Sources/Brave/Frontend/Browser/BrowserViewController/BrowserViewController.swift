@@ -300,7 +300,8 @@ public class BrowserViewController: UIViewController {
     feedDataSource.historyAPI = profileController.historyAPI
     backgroundDataSource = .init(
       service: profileController.backgroundImagesService,
-      rewards: rewards,
+      rewards: BraveRewards.isSupported(prefService: profileController.profile.prefs)
+        ? rewards : nil,
       privateBrowsingManager: privateBrowsingManager
     )
 
@@ -951,8 +952,10 @@ public class BrowserViewController: UIViewController {
     if profileController.profile.prefs.isBraveVPNAvailable {
       Task.delayed(bySeconds: 1.0) { @MainActor in
         // Refresh Skus VPN Credentials before loading VPN state
-        await BraveSkusManager(isPrivateMode: self.privateBrowsingManager.isPrivateBrowsing)?
-          .refreshVPNCredentials()
+        let skusService = Skus.SkusServiceFactory.get(
+          privateMode: self.privateBrowsingManager.isPrivateBrowsing
+        )
+        await skusService?.refreshVPNCredentials()
 
         self.vpnProductInfo.load()
         if let customCredential = Preferences.VPN.skusCredential.value,
@@ -2470,45 +2473,6 @@ extension BrowserViewController: TabsBarViewControllerDelegate {
 }
 
 extension BrowserViewController: TabMiscDelegate {
-  func showRequestRewardsPanel(_ tab: some TabState) {
-    let vc = BraveTalkRewardsOptInViewController()
-
-    // Edge case: user disabled Rewards button and wants to access free Brave Talk
-    // We re-enable the button again. It can be disabled in settings later.
-    Preferences.Rewards.hideRewardsIcon.value = false
-
-    let popover = PopoverController(
-      contentController: vc,
-      contentSizeBehavior: .preferredContentSize
-    )
-    popover.addsConvenientDismissalMargins = false
-    popover.present(from: topToolbar.rewardsButton, on: self)
-
-    vc.rewardsEnabledHandler = { [weak self] in
-      guard let self = self else { return }
-
-      self.rewards.isEnabled = true
-
-      let vc2 = BraveTalkOptInSuccessViewController()
-      let popover2 = PopoverController(
-        contentController: vc2,
-        contentSizeBehavior: .preferredContentSize
-      )
-      popover2.present(from: self.topToolbar.rewardsButton, on: self)
-    }
-
-    vc.linkTapped = { [unowned self] request in
-      self.tabManager
-        .addTabAndSelect(request, isPrivate: privateBrowsingManager.isPrivateBrowsing)
-    }
-  }
-
-  func stopMediaPlayback(_ tab: some TabState) {
-    tabManager.allTabs.forEach({
-      PlaylistScriptHandler.stopPlayback(tab: $0)
-    })
-  }
-
   func showWalletNotification(_ tab: some TabState, origin: URLOrigin) {
     // only display notification when BVC is front and center
     guard presentedViewController == nil,
@@ -2683,6 +2647,10 @@ extension BrowserViewController: SearchViewControllerDelegate {
 
   func searchViewControllerAllowFindInPage() -> Bool {
     return tabManager.selectedTab?.visibleURL?.isNewTabURL != true
+  }
+
+  func searchViewControllerHasPendingWidgetSearchAttribution(_: SearchViewController) -> Bool {
+    tabManager.selectedTab?.widgetSearchTabHelper != nil
   }
 
   @objc private func dismissQuickSearchEngines() {
@@ -3118,9 +3086,11 @@ extension BrowserViewController {
       }
     }
 
+    let hasPendingWidgetSearch = tabManager.selectedTab?.widgetSearchTabHelper != nil
     if let searchURL = engine?.searchURLForQuery(
       text,
-      isBraveSearchPromotion: isBraveSearchPromotion
+      isBraveSearchPromotion: isBraveSearchPromotion,
+      isWidgetSearchAttribution: hasPendingWidgetSearch
     ) {
       // We couldn't find a matching search keyword, so do a search query.
       finishEditingAndSubmit(searchURL)
